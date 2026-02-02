@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, CheckCircle, Circle, Edit2, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, Check, Settings, ScanLine, ShoppingCart, Calendar } from 'lucide-react';
 import { BudgetData, GroceryItem } from '../types';
 import { StorageService } from '../services/storage';
 import { generateId, formatCurrency } from '../utils';
-import { Card, Button, Input } from '../components/UIComponents';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { Card, Button, Input, Badge } from '../components/UIComponents';
 
 export const BudgetView: React.FC = () => {
   const [data, setData] = useState<BudgetData>(StorageService.getBudget());
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
-  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [mode, setMode] = useState<'planning' | 'market'>('market');
 
   // Sync with Storage
   useEffect(() => {
@@ -19,24 +18,15 @@ export const BudgetView: React.FC = () => {
 
   const activeList = data.lists.find(l => l.id === data.activeListId) || data.lists[0];
 
-  // Derived calculations
+  // Calculations
   const totalCost = activeList.items.reduce((sum, item) => sum + item.price, 0);
   const selectedCost = activeList.items
     .filter(i => i.selected)
     .reduce((sum, item) => sum + item.price, 0);
   
-  const boughtCost = activeList.items
-    .filter(i => i.bought)
-    .reduce((sum, item) => sum + item.price, 0);
-
   const remainingBudget = data.totalBudget - selectedCost;
   const isOverBudget = remainingBudget < 0;
-
-  // Handlers
-  const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value) || 0;
-    setData(prev => ({ ...prev, totalBudget: val }));
-  };
+  const progressPercent = Math.min(100, (selectedCost / data.totalBudget) * 100);
 
   const addItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +37,8 @@ export const BudgetView: React.FC = () => {
       name: newItemName,
       price: parseFloat(newItemPrice),
       selected: true,
-      bought: false
+      bought: false,
+      category: 'other' // default for now
     };
 
     setData(prev => {
@@ -58,17 +49,12 @@ export const BudgetView: React.FC = () => {
       );
       return { ...prev, lists: updatedLists };
     });
-
     setNewItemName('');
     setNewItemPrice('');
   };
 
   const toggleSelection = (id: string) => {
     updateItem(id, (item) => ({ ...item, selected: !item.selected }));
-  };
-
-  const toggleBought = (id: string) => {
-    updateItem(id, (item) => ({ ...item, bought: !item.bought }));
   };
 
   const updateItem = (id: string, updater: (item: GroceryItem) => GroceryItem) => {
@@ -93,177 +79,177 @@ export const BudgetView: React.FC = () => {
     });
   };
 
-  const clearPurchased = () => {
-     if(window.confirm("Remove all purchased items from the list?")) {
-        setData(prev => {
-          const updatedLists = prev.lists.map(list => 
-            list.id === prev.activeListId 
-              ? { ...list, items: list.items.filter(item => !item.bought) }
-              : list
-          );
-          return { ...prev, lists: updatedLists };
-        });
-     }
-  }
+  // Group items
+  const categories = {
+    produce: activeList.items.filter(i => !i.category || i.category === 'produce'), // Temporary grouping logic
+    dairy: activeList.items.filter(i => i.category === 'dairy'),
+    household: activeList.items.filter(i => i.category === 'household'),
+    other: activeList.items.filter(i => i.category === 'other' || i.category === 'pantry'),
+  };
 
-  // Chart Data
-  const chartData = [
-    { name: 'Used', value: selectedCost > data.totalBudget ? data.totalBudget : selectedCost },
-    { name: 'Remaining', value: Math.max(0, data.totalBudget - selectedCost) },
-    ...(isOverBudget ? [{ name: 'Over', value: Math.abs(remainingBudget) }] : [])
-  ];
-
-  const CHART_COLORS = ['#3b82f6', '#e2e8f0', '#ef4444'];
+  // Helper to render list
+  const renderList = (title: string, items: GroceryItem[]) => {
+    if (items.length === 0) return null;
+    return (
+      <div className="mb-6">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">{title}</h3>
+        <div className="space-y-2">
+          {items.map(item => (
+            <div 
+              key={item.id} 
+              onClick={() => toggleSelection(item.id)}
+              className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                item.selected 
+                  ? 'bg-[#15221d] border-[#22c55e]/30' 
+                  : 'bg-[#15221d]/50 border-transparent opacity-60'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${
+                  item.selected ? 'bg-[#22c55e] border-[#22c55e]' : 'border-slate-600'
+                }`}>
+                  {item.selected && <Check size={14} className="text-[#052e16] font-bold" />}
+                </div>
+                <div>
+                  <p className={`font-medium text-sm ${item.selected ? 'text-white' : 'text-slate-400 line-through'}`}>{item.name}</p>
+                  <p className="text-[10px] text-slate-500">{item.quantity || '1 unit'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                 <span className={`font-bold text-sm ${item.selected ? 'text-white' : 'text-slate-500'}`}>
+                   {formatCurrency(item.price, data.currencySymbol)}
+                 </span>
+                 <button onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="text-slate-600 hover:text-red-500">
+                    <Trash2 size={14} />
+                 </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Budget Summary Card */}
-      <Card className="p-5 bg-white sticky top-0 z-10 shadow-md ring-1 ring-slate-200">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <label className="text-xs text-slate-500 uppercase font-bold tracking-wider">Total Budget</label>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xl font-medium text-slate-400">{data.currencySymbol}</span>
-              <input
-                type="number"
-                value={data.totalBudget || ''}
-                onChange={handleBudgetChange}
-                placeholder="0"
-                className="text-3xl font-bold w-40 bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-          </div>
-          <div className="h-16 w-16">
-             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={15}
-                  outerRadius={30}
-                  fill="#8884d8"
-                  paddingAngle={5}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+    <div className="space-y-5 pb-24 animate-in slide-in-from-bottom-4">
+      {/* Top Bar */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Weekly Market Run</h1>
+          <div className="flex items-center gap-1 text-slate-400 text-xs mt-1">
+             <Calendar size={12} />
+             <span>Oct 24 - Oct 31</span>
           </div>
         </div>
+        <button className="p-2 rounded-full bg-[#15221d] text-slate-400 hover:text-white border border-[#2a3d35]">
+           <Settings size={18} />
+        </button>
+      </div>
 
-        <div className={`p-4 rounded-lg flex justify-between items-center transition-colors ${
-          isOverBudget ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-        }`}>
-          <span className="font-medium text-sm">Remaining Balance</span>
-          <span className="text-2xl font-bold tracking-tight">
-            {isOverBudget ? '-' : ''}{formatCurrency(Math.abs(remainingBudget), data.currencySymbol)}
-          </span>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-[#15221d] rounded-2xl p-4 border border-[#2a3d35]">
+           <p className="text-xs text-slate-400 mb-1">Total</p>
+           <p className="text-2xl font-bold text-white">{formatCurrency(data.totalBudget, '')}</p>
         </div>
-      </Card>
+        <div className={`rounded-2xl p-4 border relative overflow-hidden ${isOverBudget ? 'bg-red-500/10 border-red-500/20' : 'bg-[#15221d] border-[#2a3d35]'}`}>
+           <p className="text-xs text-slate-400 mb-1">Remaining</p>
+           <div className="flex items-end gap-2">
+             <p className={`text-2xl font-bold ${isOverBudget ? 'text-red-500' : 'text-[#22c55e]'}`}>
+               {formatCurrency(remainingBudget, '')}
+             </p>
+             <Badge color={isOverBudget ? 'red' : 'green'}>{Math.round(remainingBudget/data.totalBudget * 100)}%</Badge>
+           </div>
+           {/* Piggy Bank Icon Watermark */}
+           <div className="absolute right-[-10px] bottom-[-10px] opacity-5 rotate-12">
+              <ShoppingCart size={80} />
+           </div>
+        </div>
+      </div>
 
-      {/* Add New Item */}
-      <form onSubmit={addItem} className="flex gap-2">
-        <div className="flex-1">
-          <Input 
-            placeholder="Item name (e.g. Rice)" 
-            value={newItemName}
-            onChange={e => setNewItemName(e.target.value)}
+      {/* Progress Bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs text-slate-400">
+          <span>Budget Used</span>
+          <span>{formatCurrency(selectedCost, '')} / {formatCurrency(data.totalBudget, '')}</span>
+        </div>
+        <div className="h-2 w-full bg-[#15221d] rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all duration-500 ${isOverBudget ? 'bg-red-500' : 'bg-[#22c55e]'}`} 
+            style={{ width: `${Math.min(100, progressPercent)}%` }}
           />
         </div>
-        <div className="w-24">
-          <Input 
-            type="number" 
-            placeholder="Price" 
-            value={newItemPrice}
-            onChange={e => setNewItemPrice(e.target.value)}
-          />
-        </div>
-        <Button type="submit" disabled={!newItemName || !newItemPrice}>
-          <Plus size={20} />
-        </Button>
-      </form>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-[#15221d] p-1 rounded-xl flex gap-1 border border-[#2a3d35]">
+        <button 
+          onClick={() => setMode('planning')}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'planning' ? 'bg-[#2a3d35] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          Planning
+        </button>
+        <button 
+          onClick={() => setMode('market')}
+          className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-all ${mode === 'market' ? 'bg-[#22c55e] text-[#052e16] shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <ShoppingCart size={12} />
+          Market Mode
+        </button>
+      </div>
 
       {/* Lists */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-end px-1">
-          <h3 className="font-bold text-slate-800 text-lg">Grocery List</h3>
-          {activeList.items.some(i => i.bought) && (
-             <button onClick={clearPurchased} className="text-xs text-red-500 font-medium hover:underline flex items-center gap-1">
-               <Trash2 size={12}/> Clean Up
+      <div className="pb-10">
+        {renderList('Produce', categories.produce)}
+        {renderList('Dairy & Eggs', categories.dairy)}
+        {renderList('Household', categories.household)}
+        {renderList('Other', categories.other)}
+        
+        {/* Add Item Form inline or FAB */}
+        <div className="fixed bottom-24 right-4 flex flex-col items-end gap-3 z-20">
+             <button className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+               <ScanLine size={20} />
              </button>
-          )}
-        </div>
-
-        {activeList.items.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            <p>List is empty.</p>
-            <p className="text-sm">Add items above to start planning.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activeList.items.map(item => (
-              <Card key={item.id} className={`flex items-center p-3 gap-3 transition-all ${item.bought ? 'opacity-60 bg-slate-50' : 'bg-white'}`}>
-                {/* Selection Toggle (Include in Budget) */}
-                <button 
-                  onClick={() => toggleSelection(item.id)}
-                  className={`p-1 rounded-full transition-colors ${item.selected ? 'text-blue-500 bg-blue-50' : 'text-slate-300 hover:text-slate-400'}`}
-                  title="Include in budget calculation"
-                >
-                  <CheckCircle size={20} className={item.selected ? 'fill-blue-500 text-white' : ''} />
-                </button>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center">
-                    <span className={`font-medium truncate ${item.bought ? 'line-through text-slate-500' : 'text-slate-800'}`}>
-                      {item.name}
-                    </span>
-                    <span className="font-bold text-slate-700">{formatCurrency(item.price, data.currencySymbol)}</span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-1">
-                   {/* Bought Toggle */}
-                   <button 
-                    onClick={() => toggleBought(item.id)}
-                    className={`p-2 rounded-lg text-xs font-bold border transition-colors ${
-                      item.bought 
-                        ? 'bg-slate-200 border-slate-300 text-slate-600' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                   >
-                     {item.bought ? 'BOUGHT' : 'BUY'}
-                   </button>
-                   
-                   <button 
-                    onClick={() => removeItem(item.id)}
-                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                   >
-                     <Trash2 size={16} />
-                   </button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-      
-      {/* Summary Footer */}
-      <div className="grid grid-cols-2 gap-4 text-center text-sm text-slate-500 pt-4 border-t border-slate-200">
-        <div>
-           <span className="block text-xs uppercase font-bold">Planned</span>
-           <span className="font-medium text-slate-800">{formatCurrency(selectedCost, data.currencySymbol)}</span>
-        </div>
-        <div>
-           <span className="block text-xs uppercase font-bold">Spent</span>
-           <span className="font-medium text-slate-800">{formatCurrency(boughtCost, data.currencySymbol)}</span>
+             <button 
+                onClick={() => {
+                   const name = prompt("Item Name?");
+                   if(name) {
+                      setNewItemName(name);
+                      const price = prompt("Price?");
+                      if(price) {
+                         setNewItemPrice(price);
+                         // Trigger add manually for now since form is hidden
+                         const newItem: GroceryItem = {
+                            id: generateId(),
+                            name: name,
+                            price: parseFloat(price),
+                            selected: true,
+                            bought: false,
+                            category: 'produce' // default
+                          };
+                          setData(prev => {
+                            const updatedLists = prev.lists.map(list => 
+                              list.id === prev.activeListId 
+                                ? { ...list, items: [newItem, ...list.items] }
+                                : list
+                            );
+                            return { ...prev, lists: updatedLists };
+                          });
+                      }
+                   }
+                }}
+                className="w-14 h-14 bg-[#22c55e] text-[#052e16] rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(34,197,94,0.4)] hover:bg-[#16a34a] active:scale-90 transition-transform"
+             >
+               <Plus size={28} />
+             </button>
         </div>
       </div>
+
+      {isOverBudget && (
+        <div className="fixed bottom-20 left-4 right-4 bg-red-500 text-white text-xs font-bold px-4 py-3 rounded-xl flex items-center justify-center shadow-lg animate-pulse z-20">
+          ⚠️ You are over budget! Consider removing items.
+        </div>
+      )}
     </div>
   );
 };

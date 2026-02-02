@@ -4,8 +4,10 @@ export interface GroceryItem {
   id: string;
   name: string;
   price: number;
+  category?: 'produce' | 'dairy' | 'household' | 'pantry' | 'other';
   selected: boolean;
   bought: boolean;
+  quantity?: string; // Display string like "1 bunch" or "3 count"
 }
 
 export interface BudgetData {
@@ -41,6 +43,14 @@ export interface Recipe {
   ingredients: string[];
   instructions: string[];
   prepTime?: string;
+  calories?: string;
+  matchPercentage?: number;
 }
 
-export type ViewState = 'budget' | 'calendar' | 'chef';
+export interface UserSession {
+  hasOnboarded: boolean;
+  isLoggedIn: boolean;
+  name: string;
+}
+
+export type AppView = 'welcome' | 'login' | 'dashboard' | 'budget' | 'calendar' | 'chef';

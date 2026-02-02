@@ -12,17 +12,26 @@
         height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f1f1;
+        background: #0c1612;
       }
       ::-webkit-scrollbar-thumb {
-        background: #ccc;
+        background: #2a3d35;
         border-radius: 3px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #999;
+        background: #34d399;
       }
       body {
         -webkit-tap-highlight-color: transparent;
+      }
+      
+      /* Hide scrollbar for horizontal scrolling areas */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
     </style>
   <script type="importmap">
@@ -38,7 +47,7 @@
 }
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 font-sans antialiased selection:bg-blue-100">
+  <body class="bg-[#0c1612] text-slate-100 font-sans antialiased selection:bg-green-900 selection:text-green-100">
     <div id="root"></div>
   </body>
 </html>

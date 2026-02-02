@@ -1,9 +1,10 @@
-import { BudgetData, FoodStock, Ingredient } from '../types';
+import { BudgetData, FoodStock, Ingredient, UserSession } from '../types';
 
 const KEYS = {
-  BUDGET: 'budget_snap_budget_v1',
-  FOODS: 'budget_snap_foods_v1',
-  INGREDIENTS: 'budget_snap_ingredients_v1',
+  BUDGET: 'budget_snap_budget_v2',
+  FOODS: 'budget_snap_foods_v2',
+  INGREDIENTS: 'budget_snap_ingredients_v2',
+  SESSION: 'budget_snap_session_v1',
 };
 
 export const StorageService = {
@@ -14,9 +15,9 @@ export const StorageService = {
     // Default initial state
     const defaultListId = 'default-list';
     return {
-      totalBudget: 0,
+      totalBudget: 45000,
       currencySymbol: 'MK',
-      lists: [{ id: defaultListId, name: 'My Grocery List', items: [] }],
+      lists: [{ id: defaultListId, name: 'Weekly Market Run', items: [] }],
       activeListId: defaultListId,
     };
   },
@@ -41,5 +42,14 @@ export const StorageService = {
 
   saveIngredients: (data: Ingredient[]) => {
     localStorage.setItem(KEYS.INGREDIENTS, JSON.stringify(data));
+  },
+
+  getSession: (): UserSession => {
+    const data = localStorage.getItem(KEYS.SESSION);
+    return data ? JSON.parse(data) : { hasOnboarded: false, isLoggedIn: false, name: '' };
+  },
+
+  saveSession: (data: UserSession) => {
+    localStorage.setItem(KEYS.SESSION, JSON.stringify(data));
   },
 };
