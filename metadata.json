@@ -1,0 +1,5 @@
+{
+  "name": "Budget Snap",
+  "description": "A simple, offline-first budget and meal planning app designed for students. helps you track expenses, plan food survival, and suggest recipes using AI.",
+  "requestFramePermissions": []
+}
